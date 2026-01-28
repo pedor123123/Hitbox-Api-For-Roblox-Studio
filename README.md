@@ -3,6 +3,7 @@ HitboxService - This module handles the creation and management of hitboxes for 
 	It creates and destroys hitboxes automatically based on the provided time, and handles the system
 	to detect collisions with other characters.
 	Usage:
+	
 		local HitboxService = require(path.to.HitboxService)
 		local hitbox = HitboxService.new(player, size, timeToDestroy, distance)
 		
@@ -18,6 +19,6 @@ HitboxService - This module handles the creation and management of hitboxes for 
 		
 	(Hitbox automatically starts)
 	
-	BY: garrinchafiller  (knuckles) - Discord
-        Sabersr777       (vertigo) - Roblox
+BY: garrinchafiller  (knuckles) - Discord
+     Sabersr777       (vertigo) - Roblox
         
