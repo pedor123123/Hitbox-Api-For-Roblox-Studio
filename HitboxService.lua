@@ -80,17 +80,6 @@ function HitboxService.new(plr: Player, size: Vector3, timeToDestroy: number, di
 	self.onHit = self.PlayerDetected.Event
 	self.onNonHit = self.NonDetected.Event
 	
-	--[[self.__con = hitBox.Touched:Connect(function(plr)
-		if not table.find(self.plrs, plr.Parent.Name) then
-			if plr:IsA("Accessory") or plr:IsA("Tool") then return end
-			if not plr.Parent:FindFirstChild("Humanoid") or plr.Parent.Parent:FindFirstChild("Humanoid") then self:destroy() return end
-			table.insert(self.plrs, plr.Parent.Name)
-			self.PlayerDetected:Fire(plr.Parent)
-			self:destroy()
-		end
-	end)
-	--]]
-	
 	local elapsed = 0
 	self._conn = game:GetService("RunService").Heartbeat:Connect(function(dt)
 		elapsed += dt
@@ -134,3 +123,4 @@ end
 
 
 return HitboxService
+
