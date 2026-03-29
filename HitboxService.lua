@@ -11,10 +11,10 @@
 	
 	Usage:
 		local HitboxService = require(path.to.HitboxService)
-		local hitbox = HitboxService.new(player, size, timeToDestroy, distance)
 		local params = Hitbox.NewParams()
+		local hitbbox = HitboxService.new(params, 10, true) -- 10 seconds, debug active
 		
-		hitbox.onHit:Connect(function(character)
+		hitbox.onHit:Connect(function(character, parts ?) -- you can receive other parts that had touched the hitbox
 			print("Hit character:", character.Name)
 		end)
 		hitbox.onNonHit:Connect(function()
@@ -36,10 +36,26 @@
         Sabersr777       (vertigo) - Roblox
         
         
+    --OBS:
+		this module has some spelling "errors," 
+		such as "debuG." don't mistake that for stupidity; 
+		it's just my coding style.        
 ]]
 
 local HitboxService = {}
 HitboxService.__index = HitboxService
+
+HitboxService.ServiceFolder = Instance.new("Folder", game:GetService("ReplicatedStorage"))
+HitboxService.ServiceFolder.Name = "HITBOX_"..tostring(math.random(100000000, 999999999))
+
+HitboxService.HitboxEvent = Instance.new("RemoteEvent", HitboxService.ServiceFolder)
+HitboxService.HitboxEvent.Name = "HitboxEvent"
+
+HitboxService.MAX_VALUES = {
+	Size = 50,
+	Distance = 50,
+	Time = 10
+}
 
 export type HitParams = {
 	FilterObjs: {Instance},
@@ -55,14 +71,15 @@ export type HitParams = {
 function HitboxService.new(paramsHit: HitParams, timeToDestroy: number, debuG: boolean?)
 
 	if not paramsHit then error("Params must be provided") end
-	--[[assert(typeof(plr) == "Instance" and plr:IsA("Player"), "Argument 1 must be a Player")
-	assert(typeof(size) == "Vector3", "Argument 2 must be a Vector3")
+	assert(typeof(paramsHit.Size) == "Vector3", "Argument 2 must be a Vector3")
 	assert(typeof(timeToDestroy) == "number", "Argument 3 must be a number")
-	assert(typeof(distance) == "number", "Argument 4 must be a number")
-	assert(typeof(pos) == "Vector3" or pos == nil, "Argument 5 must be a Vector3 or nil")
-	assert(timeToDestroy >= 0, "Argument 3 must be greater than 0")]]
-		
-	
+	assert(typeof(paramsHit.Distance) == "number", "Argument 4 must be a number")
+	--assert(typeof(paramsHit.Pos) == "Vector3" or paramsHit.Pos == nil, "Argument 5 must be a Vector3 or nil")
+	assert(timeToDestroy >= 0, "Argument 3 must be greater than 0")
+	if not paramsHit.Pos then
+		assert(paramsHit.FollowObj, "FollowObj is required in this case")
+	end
+
 	local params = OverlapParams.new()
 	params.FilterDescendantsInstances = paramsHit.FilterObjs or {}
 	params.FilterType = paramsHit.FilterMode
@@ -78,7 +95,6 @@ function HitboxService.new(paramsHit: HitParams, timeToDestroy: number, debuG: b
 	hitBox.Massless = true
 	hitBox.Anchored = false
 	hitBox.Name = "HitBox"
-	hitBox.CanQuery = false
 
 	if paramsHit.Pos then
 		hitBox.Position = paramsHit.Pos
@@ -118,13 +134,16 @@ function HitboxService.new(paramsHit: HitParams, timeToDestroy: number, debuG: b
 		end
 
 		local parts = workspace:GetPartBoundsInBox(hitBox.CFrame, hitBox.Size, params)
-		
+
 		if self._paramsHit.DetectionMode == "OneTime" then
 			for i, v in pairs(parts) do
-				self.PlayerDetected:Fire(v)
-				table.insert(self.list, v)
-				self:destroy()
-				return 
+				if v.Parent:FindFirstChild("Humanoid") and not table.find(self.list, v.Parent) then
+					table.insert(self.plrs, v.Parent)
+					self.PlayerDetected:Fire(v)
+					table.insert(self.list, v)
+					self:destroy()
+					return
+				end
 			end
 		elseif self._paramsHit.DetectionMode == "Multiple" then
 			for i, v in pairs(parts) do
@@ -155,7 +174,7 @@ FilterObjs: {Instance},
 ]]
 
 function HitboxService.NewParams()
-	
+
 	local defaultParams:HitParams = {
 		FilterObjs = {},
 		FilterMode = Enum.RaycastFilterType.Exclude,
@@ -163,14 +182,27 @@ function HitboxService.NewParams()
 		Pos = nil, -- optional
 		FollowMode = "Follow", -- Static
 		FollowObj = nil, -- need if FollowMode is Follow,
-		DetectionMode = "Default"
+		DetectionMode = "OneTime"
 	} 
-	
+
 	return defaultParams
 end
 
+function HitboxService.NewClientParams()
+	return {HitboxService.NewParams(), {
+		Time = 0.2,
+		Debug = false
+	}}
+end
+
+function HitboxService.IsItAHitParams(obj:any)
+	return typeof(obj) == "table"
+		and typeof(obj.Size) == "Vector3"
+		and typeof(obj.Distance) == "number"
+end
+
 function HitboxService:destroy()
-	
+
 	if #self.list == 0 then
 		self.NonDetected:Fire()
 	end 
@@ -184,5 +216,44 @@ function HitboxService:destroy()
 	setmetatable(self, nil)
 end
 
+function HitboxService.Init()
+	HitboxService.HitboxEvent.OnServerEvent:Connect(function(plr, ...)
+		local params = {...}
+		local hitbox = HitboxService.new(params[1], params[2])
+		local localListennerHit
+		local localListennerNonHit
+		
+		local hitParams = params[1]
+		local config = params[2]
+		
+		if not HitboxService.IsItAHitParams(hitParams) then return end
+		
+		if hitParams.Size.Magnitude > HitboxService.MAX_VALUES.Size then return end
+		if hitParams.Distance > HitboxService.MAX_VALUES.Distance then return end
+		if config > HitboxService.MAX_VALUES.Time then return end
+		
+		local function clearUp()
+			if localListennerHit then
+				localListennerHit:Disconnect()
+				localListennerHit = nil
+			end
+			if localListennerNonHit then
+				localListennerNonHit:Disconnect()
+				localListennerNonHit = nil
+			end
+		end
+		
+		localListennerHit = hitbox.onHit:Connect(function(...)
+			HitboxService.HitboxEvent:FireClient(plr, "Hit", ...)
+			clearUp()
+		end)
+		
+		localListennerNonHit = hitbox.onNonHit:Connect(function(...)
+			HitboxService.HitboxEvent:FireClient(plr, "NonHit", ...)
+			clearUp()
+		end)
+		
+	end)
+end
 
 return HitboxService
